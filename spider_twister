@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 
 #################### ALESSANDRO RIDOLFI ########################
-#                        Version 1.2                           #
-#           Bonn, December 2016 - Cagliari, Apr 2019           #
+#                        Version 1.3                           #
+#             Bonn, December 2016 - Rome, Apr 2019             #
 ################################################################
 
 import numpy as np
 import subprocess
 import os, os.path, sys, glob, time, shutil, datetime
 import multiprocessing
+import matplotlib.pyplot as plt
 
-string_version = "1.2 (09Apr2019)"
+np.set_printoptions(threshold=np.inf)
+string_version = "1.3 (24Apr2019)"
 
 dict_param_formatters = {'PSR': "{:<17s}",'RAJ': "{:<9s}", 'DECJ': "{:<9s}",'PMRA': "{:<19s}",'PMDEC': "{:<19s}",'PX': "{:<20s}",'F0': "{:<6s}",'F1': "{:<8s}",'F2': "{:<8s}",'F3': "{:<8s}",'F4': "{:<8s}",'F5': "{:<8s}",'PEPOCH': "{:<14s}",'START': "{:<17s}",'FINISH': "{:<17s}",'DM': "{:<17s}",'DMEPOCH': "{:<15s}",'SOLARN0': "{:<21s}",'EPHEM': "{:<20s}",'CLK': "{:<20s}",'UNITS': "{:<20s}",'TIMEEPH': "{:<20s}",'T2CMETHOD': "{:<20s}",'CORRECT_TROPOSPHERE': "{:<20s}",'PLANET_SHAPIRO': "{:<20s}",'DILATEFREQ': "{:<20s}",'NTOA': "{:<23s}",'TRES': "{:<21s}",'TZRMJD': "{:<8s}",'TZRFRQ': "{:<18s}",'TZRSITE': "{:<25s}",'NITS': "{:<23s}",'BINARY': "{:<18s}",'A1': "{:<15s}",'E': "{:<14s}",'T0': "{:<10s}", 'TASC': "{:<10s}", 'OM': "{:<10s}",'PB': "{:<12s}",'FB0': "{:<7s}",'FB1': "{:<7s}",'FB2': "{:<7s}",'FB3': "{:<7s}",'FB4': "{:<7s}",'FB5': "{:<7s}",'FB6': "{:<7s}",'FB7': "{:<7s}",'FB8': "{:<7s}",'FB9': "{:<7s}",'FB10': "{:<7s}",'FB11': "{:<7s}",'FB12': "{:<7s}",'FB13': "{:<7s}",'GAMMA': "{:<17s}",'PBDOT': "{:<17s}",'OMDOT': "{:<17s}",'SINI': "{:<18s}",'MTOT': "{:<18s}",'M2': "{:<18s}",'EPS1': "{:<18s}",'EPS2': "{:<18s}"}
 
@@ -26,9 +28,6 @@ def execute_and_log(command, work_dir, log_abspath, dict_envs={}, flag_append=0)
         else:
                 flag_open_mode = "w+"
         log_file = open("%s" % (log_abspath), flag_open_mode)
-        print "execute_and_log:: I have opened the log_file"
-        print "execute_and_log:: command %s" % (command)
-        print "execute_and_log:: work_dir = ", work_dir
 
         log_file.write("****************************************************************\n")
         log_file.write("START DATE AND TIME: %s\n" % (datetime_start))
@@ -37,19 +36,16 @@ def execute_and_log(command, work_dir, log_abspath, dict_envs={}, flag_append=0)
         log_file.write("WORKING DIRECTORY: %s\n" % (work_dir))
         log_file.write("****************************************************************\n")
         log_file.flush()
-        print "execute_and_log:: I have written the beginning of the log file\"%s\"" % (log_abspath); sys.stdout.flush()
 
         list_for_Popen = command.split()
         env_subprocess = os.environ.copy()
         if dict_envs: #If the dictionary is not empty                                                                                                       
                 for k in dict_envs.keys():
                         env_subprocess[k] = dict_envs[k]
-        #print "execute_and_log::dict_envs: ", dict_envs                                                                                                    
-        #print "execute_and_log::env_subprocess: ", env_subprocess                                                                                          
-        print "execute_and_log: Going to start Popen"; sys.stdout.flush()
+
         proc = subprocess.Popen(list_for_Popen, stdout=log_file, stderr=log_file, cwd=work_dir, env=env_subprocess)
-        proc.communicate()  #Wait for the process to complete                                                                                               
-        print "execute_and_log: Finished: %s" % (command); sys.stdout.flush()
+        proc.communicate()  #Wait for the process to complete
+
         datetime_end = (datetime.datetime.now()).strftime("%Y/%m/%d  %H:%M")
         time_end = time.time()
 
@@ -89,7 +85,7 @@ def import_parfile( infile ):
 
 def write_parfile_formatted( dict_parfile, list_parameters_to_fit, outname):
         f_parfile = open(outname, "w")
-
+        
         for k in list_ordered_params_general + list_ordered_params_binary:
                 if k in dict_parfile.keys():
                         string = dict_param_formatters[k].format(k) + str(dict_parfile[k])
@@ -101,85 +97,111 @@ def write_parfile_formatted( dict_parfile, list_parameters_to_fit, outname):
                         string.replace("e-", "D-")
                         string.replace("e+", "D+")
                         f_parfile.write(string)
-
+         
         f_parfile.close()
 
-
-def calculate_number_of_steps(P, x_p_lts, ncpus):
+        
+def calculate_number_of_steps(P, x_p_lts, ncpus, orbphase_interval):
         # Calculates the best number of steps, multiple of the number of cpus
         # via Eq. (5) of Ridolfi et al. (2016)
         
-        N_steps_min = np.pi / np.arcsin(P / (8*x_p_lts))
-        k_min = int(N_steps_min/ncpus)
-        N_steps = (k_min + 1) * ncpus
-        
+        N_steps_min = np.pi / np.arcsin(P / (8*x_p_lts)) * orbphase_interval
+        N_steps = int(N_steps_min/np.float(ncpus) + 1)*ncpus
         return N_steps
 
 
-def multiprocessing_function_caller(psrname, list_T0, nsteps, partial_orbital_range, infile_basename, dict_parfile, queue_object, id_num, mode, workfolder_abspath):
-        queue_object.put( [{'data': search_fraction_of_orbit(psrname, list_T0, nsteps, partial_orbital_range, infile_basename, dict_parfile, id_num, mode, workfolder_abspath), 'id_num': id_num  }] )
+def multiprocessing_function_caller(psrname, list_indices_to_process, array_list_T0s, array_T0_idnum, infile_basename, dict_parfile, queue_object, id_num, verbosity_level, workfolder_abspath):
+        queue_object.put( [{'data': search_fraction_of_orbit(psrname, list_indices_to_process, array_list_T0s, array_T0_idnum, infile_basename, dict_parfile, id_num, verbosity_level, workfolder_abspath), 'id_num': id_num  }] )
 
         
-def search_fraction_of_orbit(psrname, list_T0s, nsteps, partial_orbital_range, infile_basename, dict_parfile, id_num, mode, workfolder_abspath):
-        i_min = int(partial_orbital_range[0]*nsteps)
-        i_max = int(partial_orbital_range[1]*nsteps)
+def search_fraction_of_orbit(psrname, list_indices_to_process, array_trial_T0s, array_T0_idnum, infile_basename, dict_parfile, id_num, verbosity_level, workfolder_abspath):
         FNULL = open(os.devnull, 'w')
         workfolder_temp = "%s/temp_cpu_%02d" % (workfolder_abspath, id_num)
         os.chdir(workfolder_temp)
-        #print  "search_fraction_of_orbit:: sono in %s" % (os.getcwd())
-        #print "Sono in search_fraction_of_orbit"
-        #print "i_min, i_max: ", i_min, i_max
-        
-        for i in range(i_min, i_max):
-		T0 = list_T0s[i]
-
-		label_file="%s_T%+06d" % (infile_basename, i+1)
-
-                current_parfile_name = "%s_T%+06d.par" % (psrname, i+1)
-		dict_parfile[key_T0]=T0
-		write_parfile_formatted( dict_parfile, [], current_parfile_name)
-	
-                t0 = time.time()
-                if mode == "presto":
-                        cmd = "prepfold -npart 512 -noxwin -n 64 -timing %s -o fold_%s %s" % (current_parfile_name, label_file, infile)
-                        #print "cmd: ", cmd
-                elif mode == "dspsr":
-                        cmd = "pam -u ./ -e T%05d.ar -E %s %s > /dev/null" % (i+1, current_parfile_name, infile)
+        #print
+        #print "search_fraction_of_orbit:: array_trial_T0s = ", array_trial_T0s[list_indices_to_process[0]:list_indices_to_process[-1]]
+        #print "search_fraction_of_orbit:: list_indices_to_process = " , list_indices_to_process
+        for index in list_indices_to_process:
+		T0         = array_trial_T0s[index]
+                T0_idnum   = array_T0_idnum[index]
                 
-                log_abspath = workfolder_abspath + "/log_%s" % (label_file)
-                #execute_and_log(cmd, workfolder_temp, log_abspath, dict_envs={}, flag_append=1)
-                subprocess.call(cmd.split(), stdout=FNULL, stderr=FNULL)
-                for j in glob.glob("*.par") + glob.glob("fold*.pfd*"):
+		label_file="%s_T%+06d" % (infile_basename, T0_idnum)
+
+                current_parfile_name = "%s_T%+06d.par" % (psrname, T0_idnum)
+		dict_parfile[key_T0]=T0
+
+		write_parfile_formatted( dict_parfile, [], current_parfile_name)
+
+                t0 = time.time()
+                cmd = "prepfold -npart 512 -noxwin -n 64 -timing %s -o %05d_%s %s" % (current_parfile_name, index, label_file, infile)
+                log_abspath = workfolder_abspath + "/logs/log_%s.txt" % (label_file)
+                if verbosity_level >= 2:
+                        print
+                        print "CPU #%d now trying T0 value of %.15f (array_trial_T0s[%d])" % (id_num, T0, index)
+                        print "Working in directory: %s" % (os.getcwd())
+                        print "cmd: ", cmd
+                        print "Logging prepfold output into '%s'." % (log_abspath)
+                        print
+                
+                
+
+
+                if verbosity_level >= 2:
+                        execute_and_log(cmd, os.getcwd(), log_abspath)
+                else:
+                        subprocess.call(cmd.split(), stdout=FNULL, stderr=FNULL)
+
+                        
+                for j in glob.glob("*.par") + glob.glob("*.pfd*"):
                         shutil.move(j, workfolder_abspath)
                         
-                                
 
+def get_closest_T0_to_observation_Tstart(T_start, T0_parfile, Pb_d):
+        N_orbits = int( (T_start - T0_parfile)/Pb_d  + 0.5)  #add half an orbit to get the closest T0 to the epoch of the observation
+        T0_closest = T0_parfile + N_orbits*Pb_d
 
+        return T0_closest
+
+def round_up(nsteps, ncpus):
+       return int(nsteps/np.float(ncpus) + 1)*ncpus    
+        
+def make_chisquare_vs_T0_plot():
+        pass
+
+###################################################
+# DEFAULT PARAMETERS
+###################################################
 nosearch_string = ""
 flag_this_epoch = 1
-mode = "presto"
-orbital_range = [0.0,1.0]
+orbital_range = [-0.5,0.5]
 ncpus = 1
 nsteps = 0
-flag_quiet_mode = 0
+verbosity_level = 1
+flag_display = 0
+flag_output_chi_vs_T0 = 1
+nsteps_factor = 1
 N_keep_best = 0
-
+key_T0 = "T0"
 list_best_folded_archives = []  #list of dictionaries {'id_num', 'pfd_file', 'parfile', 'chi_square'}
 
-if (len(sys.argv) == 1 or ("-h" in sys.argv)):
-	print "USAGE: %s -par <parfile> -datfiles <files> [-nsteps N -orbrange \"0.0,1.0\" -ncpus 4 -q]" % (os.path.basename(sys.argv[0]))
+###################################################
+# SHELL ARGUMENTS
+###################################################
+if (len(sys.argv) == 1 or ("-h" in sys.argv) or ("-help" in sys.argv) or ("--help" in sys.argv)):
+	print "USAGE: %s -par <parfile> -datfiles <files> [-nsteps N -orboffset \"-0.1,0.1\" -ncpus 4 -Q ]" % (os.path.basename(sys.argv[0]))
         print
-        print "%10s    %-60s:  %-50s" % ("-h", "", "Print help")
-        print "%10s    %-60s:  %-50s %s" % ("-par", "<parfile>", "TEMPO1/TEMPO2 parfile", "")
-        print "%10s    %-60s:  %-50s %s" % ("-datfiles", "<file1.dat>,...,<fileN.dat>", "PRESTO time series (.dat). Requires a corresponding .inf file for each .dat file.", "")
-        print "%10s    %-60s:  %-50s" % ("-nsteps", "[integer]  [default: Eq. (5) of Ridolfi et al. (2016)]", "Number by which the orbital range is split")
-        print "%10s    %-60s:  %-50s" % ("-orbrange", "\"-0.2,0.2\"  [default: \"0.0,1.0\"]", "Orbital phase (mean anomaly) range to search")
-        print "%10s    %-60s:  %-50s" % ("-ncpus", "[integer]  [default: 1]", "Number of cpus to use")
-        print "%10s    %-60s:  %-50s" % ("-keep_best", "[integer]  [default: all]", "Number of best detections to retain")
-        print "%10s    %-60s:  %-50s" % ("-q", "", "Quiet mode - do not print anything")
-        print "%10s    %-60s:  %-50s" % ("-version", "", "Print the version of this code")
-        #print "%10s    %-60s:  %-50s" % ("-mode", "{presto,dspsr}", "Mode")
-        
+        print "%10s    %-47s:  %-50s" % ("-h", "", "Print help")
+        print "%10s    %-47s:  %-50s %s" % ("-par", "<parfile>", "TEMPO1 parfile", "")
+        print "%10s    %-47s:  %-50s %s" % ("-datfiles", "<file1.dat>,...,<fileN.dat>", "PRESTO TOPOCENTRIC time series (.dat)", "")
+        print "%10s    %-47s:  %-50s" % ("-fine", "", "Double the number of steps (for faint/narrow pulsar)")
+        print "%10s    %-47s:  %-50s" % ("-nsteps", "[integer]  [default: Eq.(5) of Ridolfi+2016]", "Manually set the number of T0 trials")
+        print "%10s    %-47s:  %-50s" % ("-orboffset", "\"-0.1,0.1\"  [default: \"-0.5,0.5\"]", "Orbital phase offset from nominal T0 to search")
+        print "%10s    %-47s:  %-50s" % ("-ncpus", "[integer]  [default: 1]", "Number of cpus to use")
+        print "%10s    %-47s:  %-50s" % ("-keep_best", "[integer]  [default: all]", "Number of best detections to retain")
+        print "%10s    %-47s:  %-50s" % ("-D", "", "Show live chisquare vs orbital offset plot")
+        print "%10s    %-47s:  %-50s" % ("-Q", "", "Quiet mode - do not print anything")
+        print "%10s    %-47s:  %-50s" % ("-V", "", "Very verbose mode - print many info to debug issues")
+        print "%10s    %-47s:  %-50s" % ("-version", "", "Print the version of this code")
 	exit()
 else:
 	for j in range( 1, len(sys.argv)):
@@ -192,11 +214,13 @@ else:
 			else:
 				list_files = [ os.path.abspath(x) for x in string_files.replace(" ", "").split(",")]
 
-                        
+                elif (sys.argv[j] == "-fine"):
+                        nsteps_factor = 2
+                                                                                
 		elif (sys.argv[j] == "-nsteps"):
-                        nsteps = np.float(sys.argv[j+1])
+                        nsteps = int(sys.argv[j+1])
 
-		elif (sys.argv[j] == "-orbrange"):
+		elif (sys.argv[j] == "-orboffset"):
                         orbital_range = [np.float(x) for x in sys.argv[j+1].strip().split(",")]
 
                 elif (sys.argv[j] == "-ncpus"):
@@ -205,31 +229,33 @@ else:
                 elif (sys.argv[j] == "-keep_best"):
                         N_keep_best = int(sys.argv[j+1])
 
-        
-                elif (sys.argv[j] == "-q"):
-                        flag_quiet_mode = 1
+                elif (sys.argv[j] == "-D"):
+                        flag_display = 1
 
-                elif (sys.argv[j] == "-mode"):
-                        mode = sys.argv[j+1]
+                elif (sys.argv[j] == "-Q"):
+                        verbosity_level = 0
+
+                elif (sys.argv[j] == "-V"):
+                        verbosity_level = 2
 
                 elif (sys.argv[j] == "-version") or (sys.argv[j] == "--version") or (sys.argv[j] == "-v"):
                         print "Version: %s" % (string_version)
                         exit()
 
 
-
-key_T0 = "T0"
+###################################################
+# PARFILE READING
+###################################################
 dict_parfile = import_parfile(parfile_abspath)
 
-
 try:
-	Pb = np.float(dict_parfile['PB'])
-	Pb_s = Pb*86400.
+	Pb_d = np.float(dict_parfile['PB'])
+	Pb_s = Pb_d*86400.
 except KeyError:
 	string_Fb0 = dict_parfile['FB0']
 	Fb0 = np.float(string_Fb0)
 	Pb_s = (1./Fb0)
-	Pb = Pb_s/86400.
+	Pb_d = Pb_s/86400.
 
 x_p_lts = np.float(dict_parfile['A1'])
 omega_p_deg = np.float(dict_parfile['OM'])
@@ -240,27 +266,45 @@ except KeyError:   ecc = np.float(dict_parfile['ECC'])
 try:               psrname = dict_parfile['PSRJ']
 except KeyError:   psrname = dict_parfile['PSR']
 
-try:	          T0 = np.float(dict_parfile['T0'])
-except KeyError:  T0 = np.float(dict_parfile['TASC']); key_T0 = "TASC"
+try:	          T0_parfile = np.float(dict_parfile['T0'])
+except KeyError:  T0_parfile = np.float(dict_parfile['TASC']); key_T0 = "TASC"
 
 P = 1./np.float(dict_parfile['F0'])
 
 
-if nsteps == 0:
-        nsteps = calculate_number_of_steps(P, x_p_lts, ncpus)
 
-                
-dT0_s = Pb_s / nsteps
+###################################################
+# CALCULATE RANGE OF T0s TO SEARCH
+###################################################
+orbital_interval = orbital_range[1] - orbital_range[0]
+if nsteps == 0:
+        nsteps = calculate_number_of_steps(P, x_p_lts, ncpus, orbital_interval) * nsteps_factor
+
+# If the number of steps is not a multiple of the number of CPUs, round up to first multiple.
+if nsteps % ncpus > 0:
+        nsteps_old = nsteps
+        nsteps = round_up(nsteps, ncpus)
+
+        print
+        print "WARNING: the chosen number of steps (%d) is not a multiple of the number of CPUs (%d)." % (nsteps_old, ncpus) 
+        print "Rounding the number of steps up to %d..." % (nsteps)
+
+
+
+        
+dT0_s = (Pb_s * orbital_interval /nsteps)
 dT0_MJD = dT0_s / 86400.
 i = 0
 old_chisquare = 0
-T0_start = T0 + Pb*orbital_range[0]
-T0_end = T0 + Pb*orbital_range[1]
 
+
+N_files = len(list_files)
 best_parfile = ""
 best_pfd = ""
 
-if (flag_quiet_mode != 1):
+list_orbital_phase_borders = np.linspace(orbital_range[0],orbital_range[1], ncpus+1)
+
+if (verbosity_level >= 1):
         print
         print "#"*62
         print "#" + " "*23 + "%s" % ("SPIDER_TWISTER") + " "*23 + "#"
@@ -272,43 +316,36 @@ if (flag_quiet_mode != 1):
         print
         print "%40s: %12s" % ("Pulsar Name", psrname)
         print
-        print "%40s: %12.6f" % ("Orbital Period (d)", Pb)
+        print "%40s: %12.6f" % ("Orbital Period (d)", Pb_d)
         print "%40s: %12.6f" % ("Projected Size of Pulsar Orbit (lt-s)", x_p_lts)
-        print "%40s: %12.6f" % ("Epoch of Passage at Periastron (MJD)", T0)
+        print "%40s: %12.6f" % ("Epoch of Passage at Periastron (MJD)", T0_parfile)
         print "%40s: %12.6f" % ("Longitude of Periastron (deg)", omega_p_deg)
         print "%40s: %12.6f" % ("Eccentricity", ecc)
         print "-"*62
         print
 
-        print
         print "List of files to process:"
         for i in range(len(list_files)):
                 print "%3d) %s " % (i+1, list_files[i])
         print
-        print
-
-
-
-list_T0s = np.arange(T0_start, T0_end, dT0_MJD)
-N_T0s = len(list_T0s)
-N_files = len(list_files)
-
-
-list_orbital_phase_borders = np.linspace(orbital_range[0],orbital_range[1], ncpus+1)
-if (flag_quiet_mode != 1):
         print "Number of steps: %d" % (nsteps)
         print
         for n in range(ncpus):
                 partial_orbital_range = [    list_orbital_phase_borders[n] ,   list_orbital_phase_borders[n+1] ]
-                print "CPU %02d will search the orbital range: [%.3f - %.3f]" % (n, partial_orbital_range[0], partial_orbital_range[1])
+                print "CPU %02d will search the orbital phase offsets: [%.3f - %.3f]" % (n, partial_orbital_range[0], partial_orbital_range[1])
         print
-        print
+
+
+        
+
+###################################################
+# LOOP OVER FILES TO SEARCH
+###################################################
 for j in range(N_files):
         infile = list_files[j]
         infile_name = os.path.basename(infile).split("/")[-1]
 	infile_basename = os.path.splitext(os.path.basename(infile).split("/")[-1])[0]
-        if (flag_quiet_mode != 1):
-                print
+        if (verbosity_level >= 1):
                 print "======================================================================================"
                 print "Searching file \"%s\" (%2d/%2d)" % (infile_name, j+1,N_files )
                 print "======================================================================================"
@@ -316,30 +353,82 @@ for j in range(N_files):
         
 	workfolder = "T0_search_%s" % (infile_basename)
         workfolder_abspath = os.path.abspath(workfolder)
-        
+        logfolder_abspath = os.path.join(workfolder_abspath, "logs")
+
         
 	if not os.path.exists(workfolder_abspath):
                 os.mkdir(workfolder_abspath)
         else:
                 shutil.rmtree(workfolder_abspath)
                 os.mkdir(workfolder_abspath)
-	os.chdir(workfolder_abspath)
-        if mode == "presto":
-                inf_file = "/".join(infile.split("/")[:-1]) + "/" + infile_basename + ".inf"
-        elif mode == "dspsr":
-                inf_file = ''
                 
-        if (flag_quiet_mode != 1 and mode == "presto"):
+        if verbosity_level >= 2:
+                os.mkdir(logfolder_abspath)
+                
+	os.chdir(workfolder_abspath)
+        
+        inf_file = "/".join(infile.split("/")[:-1]) + "/" + infile_basename + ".inf"
+
+                
+        if (verbosity_level >= 1 ):
                 print get_command_output_with_pipe("cat %s" % (inf_file), "grep Epoch")
         
-        if mode == "presto":
-                T0 = np.float(get_command_output_with_pipe("cat %s" % (inf_file), "grep Epoch").strip().split("=")[-1]  )
-        elif mode == "dspsr":
-                T0 = np.float(get_command_output("vap -n -c mjd %s" % (infile)).split()[-1]  )
+        flag_is_barycentered = int(get_command_output_with_pipe("cat %s" % (inf_file), "grep Barycentered").strip().split("=")[-1])
+        if flag_is_barycentered == 1:
+                print "ERROR: The input time series seems to be barycentered. SPIDER_TWISTER only works with TOPOCENTRIC PRESTO time series!"
+                print "To fix this, run \"prepdata\" on your original search-mode data using the \"-nobary\" option."
+                exit()
                 
-        T0_start = T0
-        T0_end = T0 + Pb
-        list_T0s = np.arange(T0_start, T0_end, dT0_MJD)
+        T_start = np.float(get_command_output_with_pipe("cat %s" % (inf_file), "grep Epoch").strip().split("=")[-1]  )
+        
+                
+        T0_closest = get_closest_T0_to_observation_Tstart(T_start, T0_parfile, Pb_d)
+        T0_start  = T0_closest + Pb_d*orbital_range[0]
+        T0_end    = T0_closest + Pb_d*orbital_range[1]
+
+        array_index              = range(nsteps)
+        array_chisquares         = np.zeros(nsteps)
+        
+        array_trial_T0s =        np.linspace(T0_start, T0_end, nsteps)
+        array_orbphase_offsets   = np.arange(orbital_range[0], orbital_range[1], (orbital_range[1]-orbital_range[0])/nsteps)
+
+        T0_idnum_min = int(nsteps*(array_orbphase_offsets[0]/orbital_interval))
+        T0_idnum_max = T0_idnum_min + nsteps
+        array_T0_idnum           = range(T0_idnum_min, T0_idnum_max, 1)
+
+        if flag_display == 1:
+                plt.ion()
+                fig = plt.figure()
+                ax = fig.add_subplot(111)
+                line1, = ax.plot(array_orbphase_offsets, array_chisquares, 'b-')
+
+
+        if verbosity_level >= 2:
+                print "Pb (days)     = %21.15f" % (Pb_d)
+                print "T0_parfile    = %.15f" % (T0_parfile)
+                print
+                print "T_start (obs) = %.15f" % (T_start)
+                print
+                print "T0_closest    = %.15f" % (T0_closest)
+                print
+                print "Orb_offsets   = %.3f | %.3f" % (orbital_range[0], orbital_range[1])
+                print "T0_start      = %.15f" % (T0_start)
+                print "T0_end        = %.15f" % (T0_end)
+                print "dT0_MJD       = %.15f" % (dT0_MJD)
+                print
+                print "array_trial_T0s = %s" % (array_trial_T0s)
+                print
+                print "array_orbphase_offsets = %s" % (array_orbphase_offsets)
+                print
+                print "array_T0_idnum         = %s" % (array_T0_idnum)
+                print
+                print "array_index            = %s" % (array_index)
+                print
+                print "len(array_trial_T0s)        = %d" % len(array_trial_T0s)
+                print "len(array_orbphase_offsets) = %d" % len(array_orbphase_offsets)
+                print "len(array_T0_idnum)         = %d" % len(array_T0_idnum)
+                print "len(array_index)            = %d" % len(array_index)
+                print 
 
         program_t_start = time.time()
 
@@ -348,13 +437,18 @@ for j in range(N_files):
         list_result_program = []
         
         n_steps_todo = 0
-        for n in range(ncpus):
-                partial_orbital_range = [    list_orbital_phase_borders[n] ,   list_orbital_phase_borders[n+1] ]
-                i_min = int(partial_orbital_range[0]*nsteps)
-                i_max = int(partial_orbital_range[1]*nsteps)
-                n_steps_todo = n_steps_todo + len(range(i_min, i_max))
+        n_steps_per_cpu = int(nsteps/ncpus)
 
-                my_processes.append( multiprocessing.Process(target=multiprocessing_function_caller, args=(psrname, list_T0s, nsteps, partial_orbital_range, infile_basename, dict_parfile, my_queue, n, mode, workfolder_abspath)))
+        for n in range(ncpus):
+                
+                list_indices_to_process = array_index[ n*n_steps_per_cpu: (n+1)*n_steps_per_cpu ]
+                n_steps_todo = n_steps_todo + len(list_indices_to_process)
+                if verbosity_level >= 2:
+                        print "CPU %d will process indices: %s" % (n, list_indices_to_process)
+                        print "n_steps_todo = %d" % (n_steps_todo)
+                        print "*******************************"
+                        print
+                my_processes.append( multiprocessing.Process(target=multiprocessing_function_caller, args=(psrname, list_indices_to_process, array_trial_T0s, array_T0_idnum, infile_basename, dict_parfile, my_queue, n, verbosity_level, workfolder_abspath)))
                 os.mkdir("%s/temp_cpu_%02d" % (workfolder_abspath, n))
 
         
@@ -365,12 +459,13 @@ for j in range(N_files):
                 for k in range(0,j+1):
                         if k > 0:    string_cpus = string_cpus + ", "
                         string_cpus = string_cpus + "%2d" % k
-                if (flag_quiet_mode != 1):
+                if (verbosity_level >= 1):
                         sys.stdout.write("\rLaunching processing on CPU %s..." % (string_cpus)); sys.stdout.flush()
                         
                 p.start()
                 time.sleep(0.25)
                 
+
         
         n_files_processed = 0
         best_folded_archive = ""
@@ -381,23 +476,11 @@ for j in range(N_files):
         time.sleep(2.0)
 
         while (n_files_processed < n_steps_todo):
-                if mode == "presto":
-                        search_string = workfolder_abspath + "/*.bestprof"
-                elif mode == "dspsr":
-                        search_string = workfolder_abspath + "/*.ar"
+
+                search_string = workfolder_abspath + "/*.bestprof"
                         
                 list_current_bestprofs = glob.glob(search_string)
                 list_NEW_bestprofs = [x for x in list_current_bestprofs if x not in list_old_bestprofs]
-                #print
-                #print "list_NEW_bestprofs"
-                #print list_NEW_bestprofs
-
-                #print
-                #print "list_old_bestprofs"
-                #print list_old_bestprofs
-                #print
-                #print
-                
                 list_old_bestprofs = list_old_bestprofs + list_NEW_bestprofs
                 n_files_processed = len(list_old_bestprofs)
                 
@@ -417,26 +500,22 @@ for j in range(N_files):
                         f_parfile_name = "%s_T%+06d.par" % (psrname, f_T0_idnum)
                         f_parfile_name_abspath = os.path.abspath(f_parfile_name)
 
+                        f_index_array = f_T0_idnum - array_T0_idnum[0]
+                        
+                        try:
+                                chi = np.float(get_command_output_with_pipe("cat %s" % (f), "grep Reduced").split("=")[-1])
+                        except ValueError:
+                                chi = 0
+                                print "WARNING: could not convert the chi-square of file \"%s\" into float. Set to 0 and continuing..." % (f)
+
+                        list_best_folded_archives.append(  {'pfd_name': f_pfd_name, 'parfile': f_parfile_name, 'chi': chi, 'T0_idnum': f_T0_idnum, 'index_array': f_index_array })
+                        array_chisquares[f_index_array] = chi
 
                         
-                                
-                        if mode == "presto":
-                                try:
-                                        chi = np.float(get_command_output_with_pipe("cat %s" % (f), "grep Reduced").split("=")[-1])
-                                        
-                                        
-                                except ValueError:
-                                        chi = 0
-                                        print "WARNING: could not convert the chi-square of file \"%s\" into float. Set to 0 and continuing..." % (f)
-                        elif mode == "dspsr":
-                                chi = np.float(get_command_output("psrstat -c snr -jFTp %s" % (f)).split("=")[-1])
-
-
-                        list_best_folded_archives.append(  {'pfd_name': f_pfd_name, 'parfile': f_parfile_name, 'chi': chi, 'T0_idnum': f_T0_idnum  }   )
-
-
+                        
                         list_best_folded_archives = sorted(list_best_folded_archives, key=lambda k: k['chi'])
 
+                                
                         #Keep just the best N_keep_best
                         if N_keep_best > 0:
                                 list_dict_to_delete = list_best_folded_archives[:-N_keep_best]
@@ -452,11 +531,10 @@ for j in range(N_files):
 
                                 
                                 
-                                if mode == "presto":
-                                        best_folded_archive = f.split("/")[-1].replace(".bestprof", "")
-                                        best_folded_archive_ps = f.split("/")[-1].replace(".bestprof", ".ps")
-                                elif mode == "dspsr":
-                                        best_folded_archive = f
+                                
+                                best_folded_archive = f.split("/")[-1].replace(".bestprof", "")
+                                best_folded_archive_ps = f.split("/")[-1].replace(".bestprof", ".ps")
+
 
                                 if "T+" in f:
                                         T0_idnum = +int(f.split("T+")[-1].split("_")[0])
@@ -493,32 +571,62 @@ for j in range(N_files):
                                         
                 #list_old_bestprofs = list_current_bestprofs
                 
-                time.sleep(2.0)
+                time.sleep(4.0)
                 time_elapsed = time.time() - program_t_start
 
-                if (flag_quiet_mode != 1):
-                        sys.stdout.write('\rProgress: %5d/%5d (%4.1f%%)  |  Speed: %6.2f files / minute  |   Best detection: "%s"  (chi square = %5.3f)'  % (n_files_processed, n_steps_todo, 100.*n_files_processed/np.float(nsteps*(orbital_range[1] - orbital_range[0])), (60*n_files_processed/time_elapsed), best_folded_archive, best_chi_square))
+                if (verbosity_level >= 1):
+                        sys.stdout.write('\rProgress: %5d/%5d (%4.1f%%)  |  Speed: %6.2f files / min  |  Best detection: "%s"  (chi2 = %5.3f)'  % (n_files_processed, n_steps_todo, 100.*n_files_processed/np.float(nsteps), (60*n_files_processed/time_elapsed), best_folded_archive, best_chi_square))
                         sys.stdout.flush()
+
+                        if flag_display == 1:
+                                line1.set_ydata(array_chisquares)
+                                # recompute the ax.dataLim
+                                ax.relim()
+                                # update ax.viewLim using the new dataLim
+                                ax.autoscale_view()
+                                fig.canvas.draw()
+
+                                
                         
-
-
         best_T0_index = best_folded_archive.split("_PSR_")[0].split("_T")[-1]
         best_parfile_name = "%s_T%s.par" % (psrname, best_T0_index)
+        best_T0 = array_trial_T0s[np.argmax(array_chisquares)]
+        best_orbphase_offset = array_orbphase_offsets[np.argmax(array_chisquares)]
+        
+        if flag_output_chi_vs_T0 == 1:
+                Chi_vs_T0_filename = "%s_chi2_vs_T0.png" % workfolder_abspath
+                Chi_vs_T0_filename_nopath = os.path.basename(Chi_vs_T0_filename)
+                print
+                print
+                print "Saving Chi2 vs T0 plot onto file...",; sys.stdout.flush()
+                plt.figure(1)
+                plt.xlabel("Orbital Phase Offset")
+                plt.ylabel("Chi Square")
+                plt.title("Best T0: %.12f" % best_T0)
+                plt.axvline(x=0, color='k', linestyle='dashed')
+                plt.axvline(x=best_orbphase_offset, color='r', linestyle='dotted')
+                plt.xticks(rotation=20)
+                plt.plot(array_orbphase_offsets, array_chisquares, "k-")
+                plt.tight_layout()
+                plt.savefig(Chi_vs_T0_filename)
+                print "done!"; sys.stdout.flush()
 
-        if (flag_quiet_mode != 1):
+        if (verbosity_level >= 1):
                 sys.stdout.write('\n'); sys.stdout.flush()
-                print
-                print
-                print
+                print "======================================================================================"
                 print "T0-search of file \"%s\" completed!" % (infile_name)
                 print
+                print "%25s: \033[1m%.12f\033[0m" % ("Best T0", best_T0)
                 print "%25s: \033[1m%s\033[0m" % ("Best detection", best_folded_archive)
                 print "%25s: \033[1m%s\033[0m" % ("Chi square", best_chi_square)
                 print "%25s: \033[1m%s\033[0m" % ("Associated parfile", best_parfile_name)
-                print
+                if flag_output_chi_vs_T0 == 1:
+                        print "%25s: \033[1m%s\033[0m" % ("Chi2 vs T0 plot:", Chi_vs_T0_filename_nopath)
                 print "======================================================================================"
                 print
 
+                
+                
         for x in glob.glob("temp_cpu_*"):
                 shutil.rmtree(x)
         os.chdir("..")
