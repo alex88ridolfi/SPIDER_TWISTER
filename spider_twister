@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 #################### ALESSANDRO RIDOLFI ########################
-#                        Version 1.3                           #
-#             Bonn, December 2016 - Rome, Apr 2019             #
+#                        Version 1.4                           #
+#           Bonn, December 2016 - Cagliari, Apr 2019           #
 ################################################################
 
 import numpy as np
@@ -12,7 +12,7 @@ import multiprocessing
 import matplotlib.pyplot as plt
 
 np.set_printoptions(threshold=np.inf)
-string_version = "1.3 (24Apr2019)"
+string_version = "1.4 (08Oct2019)"
 
 dict_param_formatters = {'PSR': "{:<17s}",'RAJ': "{:<9s}", 'DECJ': "{:<9s}",'PMRA': "{:<19s}",'PMDEC': "{:<19s}",'PX': "{:<20s}",'F0': "{:<6s}",'F1': "{:<8s}",'F2': "{:<8s}",'F3': "{:<8s}",'F4': "{:<8s}",'F5': "{:<8s}",'PEPOCH': "{:<14s}",'START': "{:<17s}",'FINISH': "{:<17s}",'DM': "{:<17s}",'DMEPOCH': "{:<15s}",'SOLARN0': "{:<21s}",'EPHEM': "{:<20s}",'CLK': "{:<20s}",'UNITS': "{:<20s}",'TIMEEPH': "{:<20s}",'T2CMETHOD': "{:<20s}",'CORRECT_TROPOSPHERE': "{:<20s}",'PLANET_SHAPIRO': "{:<20s}",'DILATEFREQ': "{:<20s}",'NTOA': "{:<23s}",'TRES': "{:<21s}",'TZRMJD': "{:<8s}",'TZRFRQ': "{:<18s}",'TZRSITE': "{:<25s}",'NITS': "{:<23s}",'BINARY': "{:<18s}",'A1': "{:<15s}",'E': "{:<14s}",'T0': "{:<10s}", 'TASC': "{:<10s}", 'OM': "{:<10s}",'PB': "{:<12s}",'FB0': "{:<7s}",'FB1': "{:<7s}",'FB2': "{:<7s}",'FB3': "{:<7s}",'FB4': "{:<7s}",'FB5': "{:<7s}",'FB6': "{:<7s}",'FB7': "{:<7s}",'FB8': "{:<7s}",'FB9': "{:<7s}",'FB10': "{:<7s}",'FB11': "{:<7s}",'FB12': "{:<7s}",'FB13': "{:<7s}",'GAMMA': "{:<17s}",'PBDOT': "{:<17s}",'OMDOT': "{:<17s}",'SINI': "{:<18s}",'MTOT': "{:<18s}",'M2': "{:<18s}",'EPS1': "{:<18s}",'EPS2': "{:<18s}"}
 
@@ -183,6 +183,8 @@ nsteps_factor = 1
 N_keep_best = 0
 key_T0 = "T0"
 list_best_folded_archives = []  #list of dictionaries {'id_num', 'pfd_file', 'parfile', 'chi_square'}
+total_run_time = 0
+
 
 ###################################################
 # SHELL ARGUMENTS
@@ -249,6 +251,12 @@ else:
 dict_parfile = import_parfile(parfile_abspath)
 
 try:
+        binary_model = dict_parfile['BINARY']
+except KeyError:
+        print "ERROR: The ephemeris does not seem to include a binary model ('BINARY' keyword missing)!"
+        exit()
+        
+try:
 	Pb_d = np.float(dict_parfile['PB'])
 	Pb_s = Pb_d*86400.
 except KeyError:
@@ -258,11 +266,24 @@ except KeyError:
 	Pb_d = Pb_s/86400.
 
 x_p_lts = np.float(dict_parfile['A1'])
-omega_p_deg = np.float(dict_parfile['OM'])
 
-try:               ecc = np.float(dict_parfile['E'])
-except KeyError:   ecc = np.float(dict_parfile['ECC'])
 
+try:
+        ecc = np.float(dict_parfile['E'])
+except KeyError:
+        try:
+                ecc = np.float(dict_parfile['ECC'])
+        except KeyError:
+                eps1 = np.float(dict_parfile['EPS1'])
+                eps2 = np.float(dict_parfile['EPS2'])
+                ecc = np.sqrt( eps1**2 + eps2**2)
+
+try:
+        omega_p_deg = np.float(dict_parfile['OM'])
+except KeyError:
+        omega_p_deg = np.arctan2(eps1, eps2) * 180./np.pi
+
+                
 try:               psrname = dict_parfile['PSRJ']
 except KeyError:   psrname = dict_parfile['PSR']
 
@@ -316,6 +337,7 @@ if (verbosity_level >= 1):
         print
         print "%40s: %12s" % ("Pulsar Name", psrname)
         print
+        print "%40s: %12s" % ("Binary Model", binary_model)
         print "%40s: %12.6f" % ("Orbital Period (d)", Pb_d)
         print "%40s: %12.6f" % ("Projected Size of Pulsar Orbit (lt-s)", x_p_lts)
         print "%40s: %12.6f" % ("Epoch of Passage at Periastron (MJD)", T0_parfile)
@@ -332,7 +354,7 @@ if (verbosity_level >= 1):
         print
         for n in range(ncpus):
                 partial_orbital_range = [    list_orbital_phase_borders[n] ,   list_orbital_phase_borders[n+1] ]
-                print "CPU %02d will search the orbital phase offsets: [%.3f - %.3f]" % (n, partial_orbital_range[0], partial_orbital_range[1])
+                print "CPU %02d will search the orbital phase offsets: [%6.3f : %6.3f]" % (n, partial_orbital_range[0], partial_orbital_range[1])
         print
 
 
@@ -400,6 +422,9 @@ for j in range(N_files):
                 plt.ion()
                 fig = plt.figure()
                 ax = fig.add_subplot(111)
+                plt.xlabel("Orbital Phase Offset")
+                plt.ylabel("Chi Square")
+
                 line1, = ax.plot(array_orbphase_offsets, array_chisquares, 'b-')
 
 
@@ -534,6 +559,7 @@ for j in range(N_files):
                                 
                                 best_folded_archive = f.split("/")[-1].replace(".bestprof", "")
                                 best_folded_archive_ps = f.split("/")[-1].replace(".bestprof", ".ps")
+                                best_folded_archive_png = f.split("/")[-1].replace(".bestprof", ".ps")
 
 
                                 if "T+" in f:
@@ -573,9 +599,12 @@ for j in range(N_files):
                 
                 time.sleep(4.0)
                 time_elapsed = time.time() - program_t_start
+                processing_speed_steps_per_min = 60*n_files_processed/time_elapsed
 
+                ETA_min = (n_steps_todo - n_files_processed)/processing_speed_steps_per_min
+                
                 if (verbosity_level >= 1):
-                        sys.stdout.write('\rProgress: %5d/%5d (%4.1f%%)  |  Speed: %6.2f files / min  |  Best detection: "%s"  (chi2 = %5.3f)'  % (n_files_processed, n_steps_todo, 100.*n_files_processed/np.float(nsteps), (60*n_files_processed/time_elapsed), best_folded_archive, best_chi_square))
+                        sys.stdout.write('\rProgress: %d/%d (%.1f%% / ETA: %.2f min)  |  Speed: %6.2f steps/min  |  Best detection: "%s"  (chi2 = %5.3f)'  % (n_files_processed, n_steps_todo, 100.*n_files_processed/np.float(nsteps), ETA_min, processing_speed_steps_per_min, best_folded_archive, best_chi_square))
                         sys.stdout.flush()
 
                         if flag_display == 1:
@@ -591,7 +620,9 @@ for j in range(N_files):
         best_T0_index = best_folded_archive.split("_PSR_")[0].split("_T")[-1]
         best_parfile_name = "%s_T%s.par" % (psrname, best_T0_index)
         best_T0 = array_trial_T0s[np.argmax(array_chisquares)]
-        best_orbphase_offset = array_orbphase_offsets[np.argmax(array_chisquares)]
+        best_delta_T0 = best_T0 - T0_closest
+        best_orbphase_offset = best_delta_T0/Pb_d
+        
         
         if flag_output_chi_vs_T0 == 1:
                 Chi_vs_T0_filename = "%s_chi2_vs_T0.png" % workfolder_abspath
@@ -602,7 +633,7 @@ for j in range(N_files):
                 plt.figure(1)
                 plt.xlabel("Orbital Phase Offset")
                 plt.ylabel("Chi Square")
-                plt.title("Best T0: %.12f" % best_T0)
+                plt.title("Best T0: %.12f\nBest orbital phase offset: %.12f (%.5f s)" % (best_T0, best_orbphase_offset, best_orbphase_offset*Pb_s))
                 plt.axvline(x=0, color='k', linestyle='dashed')
                 plt.axvline(x=best_orbphase_offset, color='r', linestyle='dotted')
                 plt.xticks(rotation=20)
@@ -611,18 +642,24 @@ for j in range(N_files):
                 plt.savefig(Chi_vs_T0_filename)
                 print "done!"; sys.stdout.flush()
 
+        program_t_end = time.time()
+        program_run_time_s = program_t_end - program_t_start
+        
         if (verbosity_level >= 1):
                 sys.stdout.write('\n'); sys.stdout.flush()
                 print "======================================================================================"
                 print "T0-search of file \"%s\" completed!" % (infile_name)
                 print
-                print "%25s: \033[1m%.12f\033[0m" % ("Best T0", best_T0)
-                print "%25s: \033[1m%s\033[0m" % ("Best detection", best_folded_archive)
-                print "%25s: \033[1m%s\033[0m" % ("Chi square", best_chi_square)
-                print "%25s: \033[1m%s\033[0m" % ("Associated parfile", best_parfile_name)
+                print "%26s: \033[1m%.12f\033[0m" % ("Best T0", best_T0)
+                print "%26s: \033[1m%.12f (= %.6f s)\033[0m" % ("Orbital phase offset",best_orbphase_offset, best_orbphase_offset*Pb_s)
+                print "%26s: \033[1m%s\033[0m" % ("Best detection", best_folded_archive)
+                print "%26s: \033[1m%s\033[0m" % ("Chi square", best_chi_square)
+                print "%26s: \033[1m%s\033[0m" % ("Associated parfile", best_parfile_name)
                 if flag_output_chi_vs_T0 == 1:
-                        print "%25s: \033[1m%s\033[0m" % ("Chi2 vs T0 plot:", Chi_vs_T0_filename_nopath)
+                        print "%26s: \033[1m%s\033[0m" % ("Chi2 vs T0 plot:", Chi_vs_T0_filename_nopath)
                 print "======================================================================================"
+                print
+                print "Total time taken: %.2f minutes" % (program_run_time_s / 60.)
                 print
 
                 
