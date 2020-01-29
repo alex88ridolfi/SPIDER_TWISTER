@@ -1,18 +1,21 @@
 #!/usr/bin/env python
 
 #################### ALESSANDRO RIDOLFI ########################
-#                        Version 1.4                           #
-#           Bonn, December 2016 - Cagliari, Apr 2019           #
+#                        Version 1.5                           #
+#           Bonn, December 2016 - Bonn, January 2020           #
 ################################################################
 
 import numpy as np
 import subprocess
 import os, os.path, sys, glob, time, shutil, datetime
 import multiprocessing
+import matplotlib
+if os.environ.get('DISPLAY','') == '':
+        matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 np.set_printoptions(threshold=np.inf)
-string_version = "1.4 (08Oct2019)"
+string_version = "1.5 (29Jan2020)"
 
 dict_param_formatters = {'PSR': "{:<17s}",'RAJ': "{:<9s}", 'DECJ': "{:<9s}",'PMRA': "{:<19s}",'PMDEC': "{:<19s}",'PX': "{:<20s}",'F0': "{:<6s}",'F1': "{:<8s}",'F2': "{:<8s}",'F3': "{:<8s}",'F4': "{:<8s}",'F5': "{:<8s}",'PEPOCH': "{:<14s}",'START': "{:<17s}",'FINISH': "{:<17s}",'DM': "{:<17s}",'DMEPOCH': "{:<15s}",'SOLARN0': "{:<21s}",'EPHEM': "{:<20s}",'CLK': "{:<20s}",'UNITS': "{:<20s}",'TIMEEPH': "{:<20s}",'T2CMETHOD': "{:<20s}",'CORRECT_TROPOSPHERE': "{:<20s}",'PLANET_SHAPIRO': "{:<20s}",'DILATEFREQ': "{:<20s}",'NTOA': "{:<23s}",'TRES': "{:<21s}",'TZRMJD': "{:<8s}",'TZRFRQ': "{:<18s}",'TZRSITE': "{:<25s}",'NITS': "{:<23s}",'BINARY': "{:<18s}",'A1': "{:<15s}",'E': "{:<14s}",'T0': "{:<10s}", 'TASC': "{:<10s}", 'OM': "{:<10s}",'PB': "{:<12s}",'FB0': "{:<7s}",'FB1': "{:<7s}",'FB2': "{:<7s}",'FB3': "{:<7s}",'FB4': "{:<7s}",'FB5': "{:<7s}",'FB6': "{:<7s}",'FB7': "{:<7s}",'FB8': "{:<7s}",'FB9': "{:<7s}",'FB10': "{:<7s}",'FB11': "{:<7s}",'FB12': "{:<7s}",'FB13': "{:<7s}",'GAMMA': "{:<17s}",'PBDOT': "{:<17s}",'OMDOT': "{:<17s}",'SINI': "{:<18s}",'MTOT': "{:<18s}",'M2': "{:<18s}",'EPS1': "{:<18s}",'EPS2': "{:<18s}"}
 
@@ -133,7 +136,7 @@ def search_fraction_of_orbit(psrname, list_indices_to_process, array_trial_T0s, 
 		write_parfile_formatted( dict_parfile, [], current_parfile_name)
 
                 t0 = time.time()
-                cmd = "prepfold -npart 512 -noxwin -n 64 -timing %s -o %05d_%s %s" % (current_parfile_name, index, label_file, infile)
+                cmd = "prepfold -npart 512 -noxwin -n 64 -timing %s -o %05d_%s %s %s" % (current_parfile_name, index, label_file, infile, string_prepfold_options)
                 log_abspath = workfolder_abspath + "/logs/log_%s.txt" % (label_file)
                 if verbosity_level >= 2:
                         print
@@ -180,7 +183,8 @@ verbosity_level = 1
 flag_display = 0
 flag_output_chi_vs_T0 = 1
 nsteps_factor = 1
-N_keep_best = 0
+N_keep_best = 100
+string_prepfold_options = ""
 key_T0 = "T0"
 list_best_folded_archives = []  #list of dictionaries {'id_num', 'pfd_file', 'parfile', 'chi_square'}
 total_run_time = 0
@@ -192,18 +196,19 @@ total_run_time = 0
 if (len(sys.argv) == 1 or ("-h" in sys.argv) or ("-help" in sys.argv) or ("--help" in sys.argv)):
 	print "USAGE: %s -par <parfile> -datfiles <files> [-nsteps N -orboffset \"-0.1,0.1\" -ncpus 4 -Q ]" % (os.path.basename(sys.argv[0]))
         print
-        print "%10s    %-47s:  %-50s" % ("-h", "", "Print help")
-        print "%10s    %-47s:  %-50s %s" % ("-par", "<parfile>", "TEMPO1 parfile", "")
-        print "%10s    %-47s:  %-50s %s" % ("-datfiles", "<file1.dat>,...,<fileN.dat>", "PRESTO TOPOCENTRIC time series (.dat)", "")
-        print "%10s    %-47s:  %-50s" % ("-fine", "", "Double the number of steps (for faint/narrow pulsar)")
-        print "%10s    %-47s:  %-50s" % ("-nsteps", "[integer]  [default: Eq.(5) of Ridolfi+2016]", "Manually set the number of T0 trials")
-        print "%10s    %-47s:  %-50s" % ("-orboffset", "\"-0.1,0.1\"  [default: \"-0.5,0.5\"]", "Orbital phase offset from nominal T0 to search")
-        print "%10s    %-47s:  %-50s" % ("-ncpus", "[integer]  [default: 1]", "Number of cpus to use")
-        print "%10s    %-47s:  %-50s" % ("-keep_best", "[integer]  [default: all]", "Number of best detections to retain")
-        print "%10s    %-47s:  %-50s" % ("-D", "", "Show live chisquare vs orbital offset plot")
-        print "%10s    %-47s:  %-50s" % ("-Q", "", "Quiet mode - do not print anything")
-        print "%10s    %-47s:  %-50s" % ("-V", "", "Very verbose mode - print many info to debug issues")
-        print "%10s    %-47s:  %-50s" % ("-version", "", "Print the version of this code")
+        print "%18s    %-47s:  %-50s" % ("-h", "", "Print help")
+        print "%18s    %-47s:  %-50s %s" % ("-par", "<parfile>", "TEMPO1 parfile", "")
+        print "%18s    %-47s:  %-50s %s" % ("-datfiles", "<file1.dat>,...,<fileN.dat>", "PRESTO TOPOCENTRIC time series (.dat)", "")
+        print "%18s    %-47s:  %-50s" % ("-fine", "", "Double the number of steps (for faint/narrow pulsar)")
+        print "%18s    %-47s:  %-50s" % ("-nsteps", "[integer]  [default: Eq.(5) of Ridolfi+2016]", "Manually set the number of T0 trials")
+        print "%18s    %-47s:  %-50s" % ("-orboffset", "\"-0.1,0.1\"  [default: \"-0.5,0.5\"]", "Orbital phase offset from nominal T0 to search")
+        print "%18s    %-47s:  %-50s" % ("-ncpus", "[integer]  [default: 1]", "Number of cpus to use")
+        print "%18s    %-47s:  %-50s" % ("-prepfold_options", "'-opt1 -opt2..'  [default: none]", "Options for PRESTO's prepfold")
+        print "%18s    %-47s:  %-50s" % ("-keep_best", "{[integer],'all'}  [default: 100]", "Number of best detections to retain")
+        print "%18s    %-47s:  %-50s" % ("-D", "", "Show live chisquare vs orbital offset plot")
+        print "%18s    %-47s:  %-50s" % ("-Q", "", "Quiet mode - do not print anything")
+        print "%18s    %-47s:  %-50s" % ("-V", "", "Very verbose mode - print many info to debug issues")
+        print "%18s    %-47s:  %-50s" % ("-version", "", "Print the version of this code")
 	exit()
 else:
 	for j in range( 1, len(sys.argv)):
@@ -228,9 +233,16 @@ else:
                 elif (sys.argv[j] == "-ncpus"):
                         ncpus = int(sys.argv[j+1])
 
-                elif (sys.argv[j] == "-keep_best"):
-                        N_keep_best = int(sys.argv[j+1])
+                elif (sys.argv[j] == "-prepfold_options"):
+                        string_prepfold_options = sys.argv[j+1]
 
+                elif (sys.argv[j] == "-keep_best"):
+                        N_keep_best_str = sys.argv[j+1]
+                        if N_keep_best_str == "all":
+                                N_keep_best = 0
+                        else:
+                                N_keep_best = int(N_keep_best_str)
+                                
                 elif (sys.argv[j] == "-D"):
                         flag_display = 1
 
@@ -373,7 +385,7 @@ for j in range(N_files):
                 print "======================================================================================"
 	launch_folder =  os.getcwd()
         
-	workfolder = "T0_search_%s" % (infile_basename)
+	workfolder = "T0_search_%s_%s" % (psrname, infile_basename)
         workfolder_abspath = os.path.abspath(workfolder)
         logfolder_abspath = os.path.join(workfolder_abspath, "logs")
 
@@ -559,7 +571,7 @@ for j in range(N_files):
                                 
                                 best_folded_archive = f.split("/")[-1].replace(".bestprof", "")
                                 best_folded_archive_ps = f.split("/")[-1].replace(".bestprof", ".ps")
-                                best_folded_archive_png = f.split("/")[-1].replace(".bestprof", ".ps")
+                                best_folded_archive_png = f.split("/")[-1].replace(".bestprof", ".png")
 
 
                                 if "T+" in f:
@@ -571,10 +583,12 @@ for j in range(N_files):
                                 best_parfile_name_abspath = os.path.abspath(best_parfile_name)
                                 best_detection_pfd_abspath = os.path.abspath(best_folded_archive)
                                 best_detection_pfd_ps_abspath = os.path.abspath(best_folded_archive_ps)
+                                best_detection_pfd_png_abspath = os.path.abspath(best_folded_archive_png)
                                 
                                 parfile_symlink_abspath = "%s/%s_best_parfile.par" % (launch_folder, workfolder)
                                 pfdfile_symlink_abspath = "%s/%s_best_detection.pfd" % (launch_folder, workfolder)
                                 psfile_symlink_abspath = "%s/%s_best_detection.pfd.ps" % (launch_folder, workfolder)
+                                pngfile_symlink_abspath = "%s/%s_best_detection.pfd.png" % (launch_folder, workfolder)
 
                                 try:
                                         os.symlink(best_parfile_name_abspath, parfile_symlink_abspath)
@@ -594,15 +608,23 @@ for j in range(N_files):
                                         os.remove(psfile_symlink_abspath)
                                         os.symlink(best_detection_pfd_ps_abspath, psfile_symlink_abspath)
 
+                                try:
+                                        os.symlink(best_detection_pfd_png_abspath, pngfile_symlink_abspath) 
+                                except OSError:
+                                        os.remove(pngfile_symlink_abspath)
+                                        os.symlink(best_detection_pfd_png_abspath, pngfile_symlink_abspath)
+
                                         
                 #list_old_bestprofs = list_current_bestprofs
                 
                 time.sleep(4.0)
                 time_elapsed = time.time() - program_t_start
                 processing_speed_steps_per_min = 60*n_files_processed/time_elapsed
-
-                ETA_min = (n_steps_todo - n_files_processed)/processing_speed_steps_per_min
-                
+                try:
+                        ETA_min = (n_steps_todo - n_files_processed)/processing_speed_steps_per_min
+                except:
+                        ETA_min = np.nan
+                        
                 if (verbosity_level >= 1):
                         sys.stdout.write('\rProgress: %d/%d (%.1f%% / ETA: %.2f min)  |  Speed: %6.2f steps/min  |  Best detection: "%s"  (chi2 = %5.3f)'  % (n_files_processed, n_steps_todo, 100.*n_files_processed/np.float(nsteps), ETA_min, processing_speed_steps_per_min, best_folded_archive, best_chi_square))
                         sys.stdout.flush()
@@ -630,14 +652,16 @@ for j in range(N_files):
                 print
                 print
                 print "Saving Chi2 vs T0 plot onto file...",; sys.stdout.flush()
-                plt.figure(1)
+                #plt.figure(1)
+                plt.figure(figsize=(7,6)) 
                 plt.xlabel("Orbital Phase Offset")
                 plt.ylabel("Chi Square")
-                plt.title("Best T0: %.12f\nBest orbital phase offset: %.12f (%.5f s)" % (best_T0, best_orbphase_offset, best_orbphase_offset*Pb_s))
+                plt.title("PSR %s\n\nBest T0: %.12f\nBest orbital phase offset: %.12f (%.5f s)" % (psrname, best_T0, best_orbphase_offset, best_orbphase_offset*Pb_s))
                 plt.axvline(x=0, color='k', linestyle='dashed')
                 plt.axvline(x=best_orbphase_offset, color='r', linestyle='dotted')
                 plt.xticks(rotation=20)
                 plt.plot(array_orbphase_offsets, array_chisquares, "k-")
+                
                 plt.tight_layout()
                 plt.savefig(Chi_vs_T0_filename)
                 print "done!"; sys.stdout.flush()
@@ -652,7 +676,7 @@ for j in range(N_files):
                 print
                 print "%26s: \033[1m%.12f\033[0m" % ("Best T0", best_T0)
                 print "%26s: \033[1m%.12f (= %.6f s)\033[0m" % ("Orbital phase offset",best_orbphase_offset, best_orbphase_offset*Pb_s)
-                print "%26s: \033[1m%s\033[0m" % ("Best detection", best_folded_archive)
+                print "%26s: \033[1m%s\033[0m" % ("Best detection", os.path.basename(pfdfile_symlink_abspath))
                 print "%26s: \033[1m%s\033[0m" % ("Chi square", best_chi_square)
                 print "%26s: \033[1m%s\033[0m" % ("Associated parfile", best_parfile_name)
                 if flag_output_chi_vs_T0 == 1:
