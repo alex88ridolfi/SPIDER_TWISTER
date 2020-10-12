@@ -1,0 +1,15 @@
+******************************
+Version 1.6 (12Oct2020)
+
+- First official public release
+- Major overhaul with many refinements
+- Dropped support to multiple input files
+- Temporary folder deleted at the end of running by default
+- A report is output by default
+- Option "-datfiles" is now "-dat"
+- Output best ephemeris always has BT binary model
+- Chi-vs-T0 plot now reports name of time series
+- Introduced option '-noplot' to avoid making Chi-vs-T0 plot
+- Introduced option '-noreport' to avoid making the report text file
+- Added various warning messages and notices
+- Minor bug fixes
