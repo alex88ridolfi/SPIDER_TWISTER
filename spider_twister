@@ -11,7 +11,7 @@ if os.environ.get('DISPLAY','') == '':
 import matplotlib.pyplot as plt
 
 np.set_printoptions(threshold=np.inf)
-string_version = "1.6 (12Oct2020)"
+string_version = "1.6.1 (10Nov2021)"
 
 dict_param_formatters = {'PSR': "{:<17s}", 'PSRJ': "{:<17s}", 'RAJ': "{:<9s}", 'DECJ': "{:<9s}",'PMRA': "{:<19s}",'PMDEC': "{:<19s}",'PX': "{:<20s}",'F0': "{:<6s}",'F1': "{:<8s}",'F2': "{:<8s}",'F3': "{:<8s}",'F4': "{:<8s}",'F5': "{:<8s}",'PEPOCH': "{:<14s}",'START': "{:<17s}",'FINISH': "{:<17s}",'DM': "{:<17s}",'DMEPOCH': "{:<15s}",'SOLARN0': "{:<21s}",'EPHEM': "{:<20s}",'CLK': "{:<20s}",'UNITS': "{:<20s}",'TIMEEPH': "{:<20s}",'T2CMETHOD': "{:<20s}",'CORRECT_TROPOSPHERE': "{:<20s}",'PLANET_SHAPIRO': "{:<20s}",'DILATEFREQ': "{:<20s}",'NTOA': "{:<23s}",'TRES': "{:<21s}",'TZRMJD': "{:<8s}",'TZRFRQ': "{:<18s}",'TZRSITE': "{:<25s}",'NITS': "{:<23s}",'BINARY': "{:<18s}",'A1': "{:<15s}",'E': "{:<14s}",'T0': "{:<10s}", 'TASC': "{:<10s}", 'OM': "{:<10s}",'PB': "{:<12s}",'FB0': "{:<7s}",'FB1': "{:<7s}",'FB2': "{:<7s}",'FB3': "{:<7s}",'FB4': "{:<7s}",'FB5': "{:<7s}",'FB6': "{:<7s}",'FB7': "{:<7s}",'FB8': "{:<7s}",'FB9': "{:<7s}",'FB10': "{:<7s}",'FB11': "{:<7s}",'FB12': "{:<7s}",'FB13': "{:<7s}",'GAMMA': "{:<17s}",'PBDOT': "{:<17s}",'OMDOT': "{:<17s}",'SINI': "{:<18s}",'MTOT': "{:<18s}",'M2': "{:<18s}",'EPS1': "{:<18s}",'EPS2': "{:<18s}"}
 
@@ -19,6 +19,38 @@ list_ordered_params_general = [ 'PSR', 'PSRJ', 'RAJ',  'DECJ', 'PMRA', 'PMDEC','
 
 list_ordered_params_binary = ['BINARY', 'A1',   'E', 'OM',  'T0',   'EPS1', 'EPS2', 'TASC', 'OMDOT', 'PB', 'PBDOT', 'XPBDOT', 'FB0', 'FB1',   'FB2',   'FB3',   'FB4',   'FB5',   'FB6',   'FB7',   'FB8',   'FB9','FB10','FB11','FB12','FB13','GAMMA', 'SINI', 'MTOT', 'M2', 'XDOT', 'EDOT', 'DTHETA', 'DR']
 
+def execute_and_log(command, work_dir, log_abspath, dict_envs={}, flag_append=0):
+        datetime_start = (datetime.datetime.now()).strftime("%Y/%m/%d  %H:%M")
+        time_start = time.time()
+        if flag_append == 1:
+                flag_open_mode = "a"
+        else:
+                flag_open_mode = "w+"
+        log_file = open("%s" % (log_abspath), flag_open_mode)
+
+        log_file.write("****************************************************************\n")
+        log_file.write("START DATE AND TIME: %s\n" % (datetime_start))
+        log_file.write("\nCOMMAND:\n")
+        log_file.write("%s\n\n" % (command))
+        log_file.write("WORKING DIRECTORY: %s\n" % (work_dir))
+        log_file.write("****************************************************************\n")
+        log_file.flush()
+
+        list_for_Popen = command.split()
+        env_subprocess = os.environ.copy()
+        if dict_envs: #If the dictionary is not empty                                                                                                            
+                for k in dict_envs.keys():
+                        env_subprocess[k] = dict_envs[k]
+
+        proc = subprocess.Popen(list_for_Popen, stdout=log_file, stderr=log_file, cwd=work_dir, env=env_subprocess)
+        proc.communicate()  #Wait for the process to complete                                                                                                    
+
+        datetime_end = (datetime.datetime.now()).strftime("%Y/%m/%d  %H:%M")
+        time_end = time.time()
+
+        log_file.write("\nEND DATE AND TIME: %s\n" % (datetime_end))
+        log_file.write("\nTOTAL TIME TAKEN: %d s\n" % (time_end - time_start))
+        log_file.close()
 
 
 def get_command_output(command):
@@ -165,11 +197,11 @@ flag_warn_about_nsteps_rounding = 0
 # SHELL ARGUMENTS
 ###################################################
 if (len(sys.argv) == 1 or ("-h" in sys.argv) or ("-help" in sys.argv) or ("--help" in sys.argv)):
-	print "USAGE: %s -par <parfile> -dat <TOPOCENTRIC_timeseries> [-nsteps N -orboffset \"-0.1,0.1\" -ncpus 4 -Q ]" % (os.path.basename(sys.argv[0]))
+	print "USAGE: %s -par <parfile> -dat <PRESTO_timeseries> [-nsteps N -orboffset \"-0.1,0.1\" -ncpus 4 -Q ]" % (os.path.basename(sys.argv[0]))
         print
         print "%18s    %-47s:  %-50s" % ("-h", "", "Print help")
         print "%18s    %-47s:  %-50s %s" % ("-par", "<parfile>", "TEMPO1 parfile", "")
-        print "%18s    %-47s:  %-50s %s" % ("-dat", "<file.dat>", "PRESTO TOPOCENTRIC time series (.dat)", "")
+        print "%18s    %-47s:  %-50s %s" % ("-dat", "<file.dat>", "PRESTO time series (.dat)", "")
         print "%18s    %-47s:  %-50s" % ("-fine", "", "Double the number of steps (for faint/narrow pulsar)")
         print "%18s    %-47s:  %-50s" % ("-nsteps", "[integer]  [default: Eq.(5) of Ridolfi+2016]", "Manually set the number of T0 trials")
         print "%18s    %-47s:  %-50s" % ("-orboffset", "\"-0.1,0.1\"  [default: \"-0.5,0.5\"]", "Orbital phase offset from nominal T0 to search")
@@ -281,7 +313,7 @@ try:               psrname = dict_parfile['PSRJ']
 except KeyError:   psrname = dict_parfile['PSR']
 
 try:	          T0_parfile = np.float(dict_parfile['T0'])
-except KeyError:  T0_parfile = np.float(dict_parfile['TASC']); key_T0 = "TASC"
+except KeyError:  T0_parfile = np.float(dict_parfile['TASC'])
 
 
 for x in range(0,30):
@@ -296,6 +328,7 @@ dict_parfile['PSRJ'] = psrname
 dict_parfile['PB'] = Pb_d
 dict_parfile['E']  = ecc
 dict_parfile['T0'] = T0_parfile
+dict_parfile['OM'] = omega_p_deg
 
 
 
@@ -439,9 +472,10 @@ if (verbosity_level >= 1 ):
 
 flag_is_barycentered = int(get_command_output_with_pipe("cat %s" % (inf_file), "grep Barycentered").strip().split("=")[-1])
 if flag_is_barycentered == 1:
-        print "ERROR: The input time series seems to be barycentered. SPIDER_TWISTER only works with TOPOCENTRIC PRESTO time series!"
-        print "To fix this, run \"prepdata\" on your original search-mode data using the \"-nobary\" option."
-        exit()
+        print "WARNING: The input time series seems to be barycentered."
+        print "If you are using a recent version of PRESTO, this should be fine."
+        print "If you face issues, consider running \"prepdata\" on your search-mode data using the \"-nobary\" option."
+        print
 
 T_start = np.float(get_command_output_with_pipe("cat %s" % (inf_file), "grep Epoch").strip().split("=")[-1]  )
 

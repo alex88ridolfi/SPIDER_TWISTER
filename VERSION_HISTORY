@@ -1,4 +1,9 @@
 ******************************
+Version 1.6.1 (10Nov2021)
+- Fixed bug that occurred with input parfiles with a ELL1 binary model
+- Barycentric timeseries now supported (with warning)
+
+******************************
 Version 1.6 (12Oct2020)
 
 - First official public release
