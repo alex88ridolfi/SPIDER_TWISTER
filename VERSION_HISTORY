@@ -1,4 +1,10 @@
 ******************************
+Version 1.7 (16May2024)
+- Ported to Python3
+- Live plot option disable as is not working after port to Python3 (needs further testing)
+
+
+******************************
 Version 1.6.1 (10Nov2021)
 - Fixed bug that occurred with input parfiles with a ELL1 binary model
 - Barycentric timeseries now supported (with warning)
