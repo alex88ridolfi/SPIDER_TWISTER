@@ -1,4 +1,9 @@
 ******************************
+Version 1.7.1 (17May2024)
+- Eccentricity and longitude of periastron now aumatically set to 0 if missing in the parfile
+
+
+******************************
 Version 1.7 (16May2024)
 - Ported to Python3
 - Live plot option disable as is not working after port to Python3 (needs further testing)

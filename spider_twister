@@ -11,7 +11,7 @@ if os.environ.get('DISPLAY','') == '':
 import matplotlib.pyplot as plt
 
 np.set_printoptions(threshold=np.inf)
-string_version = "1.7 (16May2024)"
+string_version = "1.7.1 (17May2024)"
 
 dict_param_formatters = {'PSR': "{:<17s}", 'PSRJ': "{:<17s}", 'RAJ': "{:<9s}", 'DECJ': "{:<9s}",'PMRA': "{:<19s}",'PMDEC': "{:<19s}",'PX': "{:<20s}",'F0': "{:<6s}",'F1': "{:<8s}",'F2': "{:<8s}",'F3': "{:<8s}",'F4': "{:<8s}",'F5': "{:<8s}",'PEPOCH': "{:<14s}",'START': "{:<17s}",'FINISH': "{:<17s}",'DM': "{:<17s}",'DMEPOCH': "{:<15s}",'SOLARN0': "{:<21s}",'EPHEM': "{:<20s}",'CLK': "{:<20s}",'UNITS': "{:<20s}",'TIMEEPH': "{:<20s}",'T2CMETHOD': "{:<20s}",'CORRECT_TROPOSPHERE': "{:<20s}",'PLANET_SHAPIRO': "{:<20s}",'DILATEFREQ': "{:<20s}",'NTOA': "{:<23s}",'TRES': "{:<21s}",'TZRMJD': "{:<8s}",'TZRFRQ': "{:<18s}",'TZRSITE': "{:<25s}",'NITS': "{:<23s}",'BINARY': "{:<18s}",'A1': "{:<15s}",'E': "{:<14s}",'T0': "{:<10s}", 'TASC': "{:<10s}", 'OM': "{:<10s}",'PB': "{:<12s}",'FB0': "{:<7s}",'FB1': "{:<7s}",'FB2': "{:<7s}",'FB3': "{:<7s}",'FB4': "{:<7s}",'FB5': "{:<7s}",'FB6': "{:<7s}",'FB7': "{:<7s}",'FB8': "{:<7s}",'FB9': "{:<7s}",'FB10': "{:<7s}",'FB11': "{:<7s}",'FB12': "{:<7s}",'FB13': "{:<7s}",'GAMMA': "{:<17s}",'PBDOT': "{:<17s}",'OMDOT': "{:<17s}",'SINI': "{:<18s}",'MTOT': "{:<18s}",'M2': "{:<18s}",'EPS1': "{:<18s}",'EPS2': "{:<18s}"}
 
@@ -299,14 +299,22 @@ except KeyError:
         try:
                 ecc = np.float64(dict_parfile['ECC'])
         except KeyError:
-                eps1 = np.float64(dict_parfile['EPS1'])
-                eps2 = np.float64(dict_parfile['EPS2'])
-                ecc = np.sqrt( eps1**2 + eps2**2)
-
+                try:
+                        eps1 = np.float64(dict_parfile['EPS1'])
+                        eps2 = np.float64(dict_parfile['EPS2'])
+                        ecc = np.sqrt( eps1**2 + eps2**2)
+                except KeyError:
+                        ecc = 0
+                        print("WARNING: Eccentricity (E / ECC / EPS1+EPS2) parameter was not found in the ephemeris. Assuming it to be 0...")
+                        
 try:
         omega_p_deg = np.float64(dict_parfile['OM'])
 except KeyError:
-        omega_p_deg = np.arctan2(eps1, eps2) * 180./np.pi
+        if 'EPS1' in dict_parfile and 'EPS2' in dict_parfile:
+                omega_p_deg = np.arctan2(eps1, eps2) * 180./np.pi
+        else:
+                omega_p_deg = 0
+                print("WARNING: No OM nor EPS1+EPS2 parameters were found in the ephemeris. Assuming OM=0...")
 
                 
 try:               psrname = dict_parfile['PSRJ']
