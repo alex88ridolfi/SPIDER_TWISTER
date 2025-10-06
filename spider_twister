@@ -339,6 +339,14 @@ dict_parfile['T0'] = T0_parfile
 dict_parfile['OM'] = omega_p_deg
 
 
+if psrname.startswith("J"):
+        flag_psrname_starts_with_J = 1
+        psrname_no_J = psrname[1:]
+else:
+        flag_psrname_starts_with_J = 0
+
+        
+
 
 
 P = 1./np.float64(dict_parfile['F0'])
@@ -676,7 +684,6 @@ while (n_files_processed < n_steps_todo):
                         ST_best_ps_abspath        = "%s/%s_best.pfd.ps" % (launch_folder, workfolder)
                         """
 
-
                         parfile_symlink_abspath = "%s/%s_temp_best.par" % (launch_folder, workfolder)
                         pfdfile_symlink_abspath = "%s/%s_temp_best.pfd" % (launch_folder, workfolder)
                         psfile_symlink_abspath  = "%s/%s_temp_best.pfd.ps" % (launch_folder, workfolder)
@@ -747,6 +754,19 @@ shutil.copy(best_parfile_name_abspath,            ST_best_par_abspath)
 cmd_refold_best = "prepfold -npart 512 -noxwin -n 64 -timing %s -o %s %s %s" % (ST_best_par_abspath, prepfold_best_basename, infile, string_prepfold_options)
 FNULL = open(os.devnull, 'w')
 subprocess.call(cmd_refold_best.split(), stdout=FNULL, stderr=FNULL)
+
+#Correct prepfold output file names to possibly include the J in the pulsar name
+if flag_psrname_starts_with_J == 1:
+        list_files_output_refold_best = glob.glob("%s*.pfd*" % prepfold_best_basename)
+        for outfilename_prepfold in list_files_output_refold_best:
+                old_outfilebasename_prepfold = outfilename_prepfold.split(".pfd")[0]
+                extension = ".pfd%s" % outfilename_prepfold.split(".pfd")[-1]
+                bad_basename  = "%s_PSR_%s" % (prepfold_best_basename, psrname_no_J)
+                good_basename = "%s_PSR_%s" % (prepfold_best_basename, psrname)
+                new_file_name = "%s%s" % (good_basename, extension)
+                if old_outfilebasename_prepfold == bad_basename:
+                        os.rename(outfilename_prepfold, new_file_name )
+
 
 best_T0_index = best_folded_archive.split("_PSR_")[0].split("_T")[-1]
 best_parfile_name = "%s_T%s.par" % (psrname, best_T0_index)
