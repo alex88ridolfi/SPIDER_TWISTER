@@ -675,15 +675,6 @@ while (n_files_processed < n_steps_todo):
                         ST_best_polycos_abspath   = "%s/%s.pfd.polycos" % (launch_folder, best_basename)
                         ST_best_ps_abspath        = "%s/%s.pfd.ps" % (launch_folder, best_basename)
 
-                        """
-                        ST_best_par_abspath       = "%s/%s_best_T0.par" % (launch_folder, workfolder)
-                        ST_best_pfd_abspath       = "%s/%s_best.pfd" % (launch_folder, workfolder)
-                        ST_best_bestprof_abspath  = "%s/%s_best.pfd.bestprof" % (launch_folder, workfolder)
-                        ST_best_png_abspath       = "%s/%s_best.pfd.png" % (launch_folder, workfolder)
-                        ST_best_polycos_abspath   = "%s/%s_best.pfd.polycos" % (launch_folder, workfolder)
-                        ST_best_ps_abspath        = "%s/%s_best.pfd.ps" % (launch_folder, workfolder)
-                        """
-
                         parfile_symlink_abspath = "%s/%s_temp_best.par" % (launch_folder, workfolder)
                         pfdfile_symlink_abspath = "%s/%s_temp_best.pfd" % (launch_folder, workfolder)
                         psfile_symlink_abspath  = "%s/%s_temp_best.pfd.ps" % (launch_folder, workfolder)

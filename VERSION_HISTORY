@@ -1,4 +1,5 @@
 Version 1.7.2 (06Oct2025)
+- Code polishing
 - Prepfold output file names now automatically renamed to to possibly include the J in the pulsar name
 - Fixed double colon typo in 'Chi2 vs T0 plot::'
 
