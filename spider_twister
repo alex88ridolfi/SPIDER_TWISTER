@@ -11,7 +11,7 @@ if os.environ.get('DISPLAY','') == '':
 import matplotlib.pyplot as plt
 
 np.set_printoptions(threshold=np.inf)
-string_version = "1.7.1 (17May2024)"
+string_version = "1.7.2 (06Oct2025)"
 
 dict_param_formatters = {'PSR': "{:<17s}", 'PSRJ': "{:<17s}", 'RAJ': "{:<9s}", 'DECJ': "{:<9s}",'PMRA': "{:<19s}",'PMDEC': "{:<19s}",'PX': "{:<20s}",'F0': "{:<6s}",'F1': "{:<8s}",'F2': "{:<8s}",'F3': "{:<8s}",'F4': "{:<8s}",'F5': "{:<8s}",'PEPOCH': "{:<14s}",'START': "{:<17s}",'FINISH': "{:<17s}",'DM': "{:<17s}",'DMEPOCH': "{:<15s}",'SOLARN0': "{:<21s}",'EPHEM': "{:<20s}",'CLK': "{:<20s}",'UNITS': "{:<20s}",'TIMEEPH': "{:<20s}",'T2CMETHOD': "{:<20s}",'CORRECT_TROPOSPHERE': "{:<20s}",'PLANET_SHAPIRO': "{:<20s}",'DILATEFREQ': "{:<20s}",'NTOA': "{:<23s}",'TRES': "{:<21s}",'TZRMJD': "{:<8s}",'TZRFRQ': "{:<18s}",'TZRSITE': "{:<25s}",'NITS': "{:<23s}",'BINARY': "{:<18s}",'A1': "{:<15s}",'E': "{:<14s}",'T0': "{:<10s}", 'TASC': "{:<10s}", 'OM': "{:<10s}",'PB': "{:<12s}",'FB0': "{:<7s}",'FB1': "{:<7s}",'FB2': "{:<7s}",'FB3': "{:<7s}",'FB4': "{:<7s}",'FB5': "{:<7s}",'FB6': "{:<7s}",'FB7': "{:<7s}",'FB8': "{:<7s}",'FB9': "{:<7s}",'FB10': "{:<7s}",'FB11': "{:<7s}",'FB12': "{:<7s}",'FB13': "{:<7s}",'GAMMA': "{:<17s}",'PBDOT': "{:<17s}",'OMDOT': "{:<17s}",'SINI': "{:<18s}",'MTOT': "{:<18s}",'M2': "{:<18s}",'EPS1': "{:<18s}",'EPS2': "{:<18s}"}
 
@@ -802,7 +802,7 @@ if (verbosity_level >= 1):
         print("%26s: \033[1m%s\033[0m" % ("Chi square", best_chi_square))
         print("%26s: \033[1m%s\033[0m" % ("Associated best parfile", os.path.basename(ST_best_par_abspath)))
         if flag_output_chi_vs_T0 == 1:
-                print("%26s: \033[1m%s\033[0m" % ("Chi2 vs T0 plot:", Chi_vs_T0_filename))
+                print("%26s: \033[1m%s\033[0m" % ("Chi2 vs T0 plot", Chi_vs_T0_filename))
         print("======================================================================================")
         print()
         print("Total time taken: %.2f minutes" % (program_run_time_s / 60.))
@@ -821,9 +821,9 @@ if flag_output_report == 1:
         report_file.write("%26s: %s\n" % ("Chi square", best_chi_square))
         report_file.write("%26s: %s\n" % ("Associated best parfile", ST_best_par_abspath))
         if flag_output_chi_vs_T0 == 1:
-                report_file.write("%26s: %s\n" % ("Chi2 vs T0 plot:", Chi_vs_T0_filename))
+                report_file.write("%26s: %s\n" % ("Chi2 vs T0 plot", Chi_vs_T0_filename))
         else:
-                report_file.write("%26s: %s\n" % ("Chi2 vs T0 plot:", "None (option '-noplot' was used)"))
+                report_file.write("%26s: %s\n" % ("Chi2 vs T0 plot", "None (option '-noplot' was used)"))
         report_file.write("======================================================================================\n")
         report_file.write("\n")
         report_file.write("Total time taken: %.2f minutes\n" % (program_run_time_s / 60.))
